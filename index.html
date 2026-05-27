@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>绩效核算助手 - 在线版</title>
+    <style>
+        :root{--mi-orange:#FF6900;--mi-orange-light:#FFF3E8;--text-main:#1E293B;--text-sec:#64748B;--glass-bg:rgba(255,255,255,0.92);--glass-border:rgba(255,255,255,0.5)}
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#f8f9fc 0%,#f0f2f8 50%,#fdf8f5 100%);color:var(--text-main);min-height:100vh}
+        .header{background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+        .header h1{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px}
+        .mi-logo{display:grid;grid-template-columns:14px 14px;gap:3px}
+        .mi-logo div{width:14px;height:14px;border-radius:3px}
+        .mi-logo .orange{background:var(--mi-orange)}
+        .mi-logo .dark{background:var(--text-main)}
+        .header-right{display:flex;align-items:center;gap:12px}
+        .user-info{font-size:13px;color:var(--text-sec)}
+        .btn{padding:6px 14px;border:1px solid #E2E8F0;border-radius:8px;background:white;cursor:pointer;font-size:13px;font-weight:600;transition:all 0.2s}
+        .btn:hover{background:#F1F5F9}
+        .btn-primary{background:linear-gradient(135deg,var(--mi-orange) 0%,#FF8533 100%);color:white;border:none;box-shadow:0 4px 12px rgba(255,105,0,0.25)}
+        .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(255,105,0,0.35)}
+        .container{max-width:640px;margin:0 auto;padding:20px 16px}
+        .card{background:var(--glass-bg);backdrop-filter:blur(16px);border:1px solid var(--glass-border);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05)}
+        .kicker{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--mi-orange);background:var(--mi-orange-light);padding:4px 10px;border-radius:6px;margin-bottom:16px;letter-spacing:0.5px}
+        .form-group{margin-bottom:14px}
+        .form-group label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-main)}
+        .form-control{width:100%;padding:11px 14px;background:white;border:1px solid #E2E8F0;border-radius:10px;font-size:14px;outline:none;transition:all 0.2s}
+        .form-control:focus{border-color:var(--mi-orange);box-shadow:0 0 0 3px rgba(255,105,0,0.1)}
+        select.form-control{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+        .row{display:flex;gap:12px}
+        .col{flex:1}
+        .hidden{display:none !important}
+        .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+        .switch{position:relative;display:inline-block;width:44px;height:24px}
+        .switch input{opacity:0;width:0;height:0}
+        .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#CBD5E1;transition:.3s;border-radius:24px}
+        .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:white;transition:.3s;border-radius:50%}
+        input:checked+.slider{background-color:var(--mi-orange)}
+        input:checked+.slider:before{transform:translateX(20px)}
+        #resultSection{display:none;margin-top:24px;border:2px solid var(--mi-orange);background:rgba(255,255,255,0.95)}
+        .result-header{text-align:center;padding:20px;border-bottom:1px dashed rgba(0,0,0,0.1)}
+        .result-title{font-size:13px;color:var(--text-sec);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+        .coeff-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px}
+        .coeff-card{background:#F8FAFC;border-radius:12px;padding:14px;text-align:center}
+        .coeff-label{font-size:12px;color:var(--text-sec);margin-bottom:6px}
+        .coeff-value{font-size:22px;font-weight:800;color:var(--mi-orange)}
+        .coeff-card.full{grid-column:1/-1}
+        .coeff-value.result{font-size:28px}
+        .badge{display:inline-block;padding:5px 14px;border-radius:16px;font-size:12px;font-weight:700;margin-top:8px}
+        .badge-normal{background:rgba(16,185,129,0.15);color:#10B981}
+        .badge-newstore{background:rgba(249,115,22,0.15);color:#F97316}
+        .badge-notopen{background:rgba(59,130,246,0.15);color:#3B82F6}
+        .badge-closed{background:rgba(239,68,68,0.15);color:#EF4444}
+        .badge-newemp{background:rgba(139,92,246,0.15);color:#8B5CF6}
+        .badge-special{background:rgba(255,105,0,0.15);color:#FF6900}
+        .process-box{background:#F8FAFC;border-radius:12px;padding:16px;margin:0 20px 20px;font-size:12px;color:var(--text-sec);line-height:1.6}
+        .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(100px);background:#1E293B;color:white;padding:10px 22px;border-radius:28px;font-size:13px;font-weight:600;transition:transform 0.3s;z-index:3000}
+        .toast.show{transform:translateX(-50%) translateY(0)}
+        .history-section{margin-top:24px}
+        .history-title{font-size:15px;font-weight:700;margin-bottom:12px}
+        .history-table{width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden;font-size:12px}
+        .history-table th,.history-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #E2E8F0}
+        .history-table th{background:#F8FAFC;font-weight:600;color:var(--text-sec);font-size:11px}
+        .empty-state{text-align:center;padding:30px;color:var(--text-sec)}
+        .lang-select{padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;background:white;cursor:pointer}
+        .tabs{display:flex;margin-bottom:20px;border-bottom:2px solid #E2E8F0}
+        .tab{flex:1;text-align:center;padding:12px;cursor:pointer;font-weight:600;color:#666;transition:all 0.3s}
+        .tab.active{color:var(--mi-orange);border-bottom:2px solid var(--mi-orange);margin-bottom:-2px}
+        .login-container{max-width:420px;margin:60px auto;padding:0 16px}
+        .login-card{background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.1);padding:40px}
+        .login-card h2{text-align:center;margin-bottom:8px}
+        .login-card p{text-align:center;color:var(--text-sec);font-size:14px;margin-bottom:30px}
+        .btn-full{width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;margin-bottom:10px}
+        .error-msg{color:#EF4444;font-size:13px;text-align:center;margin-top:10px;display:none}
+        /* Admin Panel */
+        .admin-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#F8FAFC;z-index:2000;display:flex;flex-direction:column;transform:translateY(100%);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden}
+        .admin-overlay.active{transform:translateY(0)}
+        .admin-header{background:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #E2E8F0;box-shadow:0 2px 10px rgba(0,0,0,0.02)}
+        .admin-title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+        .admin-badge{background:var(--mi-orange);color:white;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700}
+        .admin-toolbar{padding:14px 20px;background:white;display:flex;gap:10px;border-bottom:1px solid #E2E8F0;flex-wrap:wrap;align-items:center}
+        .admin-select{padding:9px 14px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;background:white;outline:none;cursor:pointer}
+        .admin-content{flex:1;overflow:auto;padding:20px}
+        .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+        .stat-card{background:white;border-radius:10px;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+        .stat-label{font-size:11px;color:var(--text-sec);margin-bottom:6px}
+        .stat-value{font-size:20px;font-weight:800;color:var(--text-main)}
+        .stat-value.orange{color:#FF6900}
+        .admin-table{width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+        .admin-table th,.admin-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #E2E8F0;font-size:12px}
+        .admin-table th{background:#F8FAFC;font-weight:600;color:var(--text-sec);text-transform:uppercase;font-size:11px}
+        .btn-icon{background:none;border:none;font-size:20px;color:var(--text-sec);cursor:pointer;padding:4px;line-height:1}
+        .btn-icon:hover{color:var(--text-main)}
+        .btn-admin{padding:6px 12px;background:var(--mi-orange);color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+        .btn-admin:hover{background:#E55D00}
+        @media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}.admin-table th,.admin-table td{padding:8px 6px;font-size:10px}}
+    </style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div id="authPage" class="login-container">
+    <div class="login-card">
+        <h2>绩效核算助手</h2>
+        <p>Performance Coefficient Calculator</p>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('login')">登录</div>
+            <div class="tab" onclick="switchTab('register')">注册</div>
+        </div>
+        <div id="loginForm">
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" id="loginEmail" class="form-control" placeholder="yourname@xiaomi.com">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="loginPassword" class="form-control" placeholder="请输入密码">
+            </div>
+            <button class="btn-full btn-primary" onclick="login()">登录</button>
+            <div id="loginError" class="error-msg"></div>
+        </div>
+        <div id="registerForm" class="hidden">
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" id="regEmail" class="form-control" placeholder="yourname@xiaomi.com">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="regPassword" class="form-control" placeholder="至少6位">
+            </div>
+            <button class="btn-full btn-primary" onclick="register()">注册</button>
+            <div id="regError" class="error-msg"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 主应用页 -->
+<div id="appPage" class="hidden">
+    <div class="header">
+        <h1>
+            <div class="mi-logo"><div class="orange"></div><div class="dark"></div><div class="dark"></div><div class="orange"></div></div>
+            绩效核算器
+        </h1>
+        <div class="header-right">
+            <select class="lang-select" id="langSelector" onchange="changeLang()">
+                <option value="zh">简体中文</option>
+                <option value="en">English</option>
+                <option value="ko">한국어</option>
+                <option value="ja">日本語</option>
+            </select>
+            <span class="user-info" id="userInfo"></span>
+            <button class="btn-admin hidden" id="adminBtn" onclick="openAdmin()">管理员</button>
+            <button class="btn" onclick="logout()">退出</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <form id="calcForm" onsubmit="event.preventDefault(); calculate();">
+            <div class="card">
+                <span class="kicker" data-i18n="basicInfo">基础信息</span>
+                <div class="row">
+                    <div class="col form-group">
+                        <label data-i18n="country">国家</label>
+                        <select id="country" class="form-control">
+                            <option value="UAE">UAE - 阿联酋</option>
+                            <option value="FR">FR - 法国</option>
+                            <option value="SG">SG - 新加坡</option>
+                            <option value="MY">MY - 马来西亚</option>
+                            <option value="TH">TH - 泰国</option>
+                            <option value="ID">ID - 印尼</option>
+                            <option value="CL">CL - 智利</option>
+                            <option value="VN">VN - 越南</option>
+                            <option value="KR">KR - 韩国</option>
+                            <option value="JP">JP - 日本</option>
+                            <option value="HK">HK - 中国香港</option>
+                            <option value="TW">TW - 中国台湾</option>
+                            <option value="KZ">KZ - 哈萨克斯坦</option>
+                            <option value="ES">ES - 西班牙</option>
+                            <option value="DE">DE - 德国</option>
+                            <option value="GB">GB - 英国</option>
+                            <option value="PE">PE - 秘鲁</option>
+                            <option value="CO">CO - 哥伦比亚</option>
+                            <option value="MX">MX - 墨西哥</option>
+                            <option value="PL">PL - 波兰</option>
+                            <option value="CZ">CZ - 捷克</option>
+                            <option value="RO">RO - 罗马尼亚</option>
+                            <option value="MA">MA - 摩洛哥</option>
+                        </select>
+                    </div>
+                    <div class="col form-group">
+                        <label data-i18n="calcMonth">绩效所属月份</label>
+                        <div style="display:flex;gap:8px;">
+                            <select id="calcYear" class="form-control" style="width:50%"></select>
+                            <select id="calcMonth" class="form-control" style="width:50%"></select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="empId">人员ID</label>
+                    <input type="text" id="empId" class="form-control" placeholder="e.g. MO000001">
+                </div>
+                <div class="row">
+                    <div class="col form-group">
+                        <label data-i18n="storeOpenDate">门店试营业日期</label>
+                        <input type="date" id="storeOpenDate" class="form-control">
+                    </div>
+                    <div class="col form-group">
+                        <label data-i18n="hireDate">入职时间</label>
+                        <input type="date" id="hireDate" class="form-control" required>
+                    </div>
+                </div>
+                <div class="form-group toggle-row">
+                    <label style="margin:0" data-i18n="isResigned">是否已离职</label>
+                    <label class="switch"><input type="checkbox" id="isResigned" onchange="document.getElementById('termDateGroup').classList.toggle('hidden',!this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="form-group hidden" id="termDateGroup">
+                    <label data-i18n="termDate">离职时间</label>
+                    <input type="date" id="termDate" class="form-control">
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="kicker" data-i18n="storeAndPerf">门店与绩效</span>
+                <div class="row">
+                    <div class="col form-group">
+                        <label data-i18n="storeRate">门店GMV达成率 (%)</label>
+                        <input type="number" step="0.1" id="storeRate" class="form-control" required placeholder="e.g. 84.8">
+                    </div>
+                    <div class="col form-group">
+                        <label data-i18n="personalScore">人员绩效得分</label>
+                        <input type="number" step="0.1" id="personalScore" class="form-control" placeholder="e.g. 92">
+                    </div>
+                </div>
+                <div class="form-group toggle-row">
+                    <label style="margin:0" data-i18n="isTransfer">是否发生调店</label>
+                    <label class="switch"><input type="checkbox" id="isTransfer" onchange="document.getElementById('transferFields').classList.toggle('hidden',!this.checked)"><span class="slider"></span></label>
+                </div>
+                <div id="transferFields" class="hidden" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label data-i18n="transferDate">调店日期</label>
+                        <input type="date" id="transferDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="transferOutScore">调出店个人绩效得分</label>
+                        <input type="number" step="0.1" id="transferOutScore" class="form-control" placeholder="留空表示无目标">
+                    </div>
+                </div>
+                <div class="form-group" id="preOpenCoeffGroup" style="display:none">
+                    <label data-i18n="preOpenCoeff">开业前个人系数</label>
+                    <select id="preOpenCoeff" class="form-control"><option value="0.8">0.8</option><option value="1">1</option></select>
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="kicker" data-i18n="specialScene">特殊场景</span>
+                <div class="form-group toggle-row">
+                    <label style="margin:0" data-i18n="isNotOpen">门店未试营业/未开业</label>
+                    <label class="switch"><input type="checkbox" id="isNotOpen" onchange="toggleStoreOpen(this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="form-group toggle-row">
+                    <label style="margin:0" data-i18n="isClosed">是否闭店保护</label>
+                    <label class="switch"><input type="checkbox" id="isClosed" onchange="document.getElementById('specialCoeffGroup').style.display=this.checked?'block':'none'"><span class="slider"></span></label>
+                </div>
+                <div class="form-group" id="specialCoeffGroup" style="display:none">
+                    <label data-i18n="specialCoeff">特殊保护系数</label>
+                    <input type="number" step="0.01" id="specialCoeff" class="form-control" placeholder="输入后直接用此系数×时间系数">
+                </div>
+                <div class="form-group toggle-row">
+                    <label style="margin:0" data-i18n="hasSalesTarget">入职当月有无销售目标</label>
+                    <label class="switch"><input type="checkbox" id="hasSalesTarget" checked><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-full btn-primary" data-i18n="calcBtn">开始核算</button>
+        </form>
+
+        <div id="resultSection" class="card">
+            <div class="result-header">
+                <div class="result-title" data-i18n="finalBonusTitle">综合绩效系数</div>
+                <div id="resBadge" class="badge badge-normal" style="margin-top:8px">正常</div>
+            </div>
+            <div class="coeff-grid">
+                <div class="coeff-card"><div class="coeff-label" data-i18n="timeCoeffLabel">时间系数</div><div class="coeff-value" id="resTimeCoeff">-</div></div>
+                <div class="coeff-card"><div class="coeff-label" data-i18n="storeCoeffLabel">门店系数</div><div class="coeff-value" id="resStoreCoeff">-</div></div>
+                <div class="coeff-card"><div class="coeff-label" data-i18n="personalCoeffLabel">个人系数</div><div class="coeff-value" id="resPersonalCoeff">-</div></div>
+                <div class="coeff-card"><div class="coeff-label" data-i18n="protectionTypeLabel">保护类型</div><div class="coeff-value" style="font-size:16px" id="resProtectionType">-</div></div>
+                <div class="coeff-card full"><div class="coeff-label" data-i18n="finalCoeffLabel">综合绩效系数</div><div class="coeff-value result" id="resFinalCoeff">-</div></div>
+            </div>
+            <div class="process-box">
+                <div style="font-weight:700;color:var(--text-main);margin-bottom:8px;font-size:13px" data-i18n="calcFormula">计算公式过程</div>
+                <div id="resProcess"></div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <div class="history-title">我的核算记录</div>
+            <div id="historyContent"><div class="empty-state">暂无记录</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- 管理员后台 -->
+<div id="adminPanel" class="admin-overlay">
+    <div class="admin-header">
+        <div class="admin-title">
+            <span>核算历史管理</span>
+            <span class="admin-badge">ADMIN</span>
+        </div>
+        <button class="btn-icon" onclick="closeAdmin()">✕</button>
+    </div>
+    <div class="admin-toolbar">
+        <select id="adminFilterCountry" class="admin-select" onchange="loadAdminRecords()">
+            <option value="">所有国家</option>
+            <option value="MY-马来西亚">MY-马来西亚</option>
+            <option value="SG-新加坡">SG-新加坡</option>
+            <option value="TH-泰国">TH-泰国</option>
+            <option value="ID-印尼">ID-印尼</option>
+            <option value="VN-越南">VN-越南</option>
+            <option value="KR-韩国">KR-韩国</option>
+            <option value="JP-日本">JP-日本</option>
+            <option value="UAE-阿联酋">UAE-阿联酋</option>
+            <option value="FR-法国">FR-法国</option>
+            <option value="HK-中国香港">HK-中国香港</option>
+            <option value="TW-中国台湾">TW-中国台湾</option>
+        </select>
+        <select id="adminFilterMonth" class="admin-select" onchange="loadAdminRecords()">
+            <option value="">所有月份</option>
+            <option value="2026-01">2026-01</option>
+            <option value="2026-02">2026-02</option>
+            <option value="2026-03">2026-03</option>
+            <option value="2026-04">2026-04</option>
+            <option value="2026-05">2026-05</option>
+            <option value="2026-06">2026-06</option>
+            <option value="2026-07">2026-07</option>
+            <option value="2026-08">2026-08</option>
+            <option value="2026-09">2026-09</option>
+            <option value="2026-10">2026-10</option>
+            <option value="2026-11">2026-11</option>
+            <option value="2026-12">2026-12</option>
+        </select>
+        <div style="flex:1;"></div>
+        <span style="font-size:12px;color:var(--text-sec);" id="adminRecordCount">共 0 条记录</span>
+    </div>
+    <div class="admin-content">
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">总核算次数</div><div class="stat-value orange" id="adminTotal">0</div></div>
+            <div class="stat-card"><div class="stat-label">活跃用户</div><div class="stat-value" id="adminUsers">0</div></div>
+            <div class="stat-card"><div class="stat-label">覆盖国家</div><div class="stat-value" id="adminCountries">0</div></div>
+            <div class="stat-card"><div class="stat-label">平均综合系数</div><div class="stat-value orange" id="adminAvg">0</div></div>
+        </div>
+        <!-- 记录表格 -->
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>核算时间</th>
+                    <th>月份</th>
+                    <th>国家</th>
+                    <th>人员ID</th>
+                    <th>用户</th>
+                    <th>保护类型</th>
+                    <th>综合系数</th>
+                </tr>
+            </thead>
+            <tbody id="adminTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ─── Supabase 配置（使用 REST API，不依赖 SDK）──────────────────────────────────────────
+const SUPABASE_URL = 'https://vrxqsbsyyiiawpmfbkya.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyeHFzYnN5eWlpYXdwbWZia3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3ODMxNTEsImV4cCI6MjA5NTM1OTE1MX0.C8P0mS_kEb8V6-P4uZ6MxuFkKlOxa_0hJMb05LE6M8I';
+
+// Supabase REST API 封装
+const supabaseAuth = {
+    async signUp(email, password) {
+        const res = await fetch(SUPABASE_URL + '/auth/v1/signup', {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        return res.json();
+    },
+    async signIn(email, password) {
+        const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        return res.json();
+    },
+    signOut() {
+        localStorage.removeItem('sb_token');
+        localStorage.removeItem('sb_user');
+    },
+    getSession() {
+        const token = localStorage.getItem('sb_token');
+        const user = localStorage.getItem('sb_user');
+        return token && user ? { access_token: token, user: JSON.parse(user) } : null;
+    },
+    saveSession(token, user) {
+        localStorage.setItem('sb_token', token);
+        localStorage.setItem('sb_user', JSON.stringify(user));
+    }
+};
+
+const supabaseDB = {
+    async insert(table, data) {
+        const session = supabaseAuth.getSession();
+        if (!session) throw new Error('未登录');
+        const res = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + session.access_token,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('保存失败');
+        return true;
+    },
+    async select(table, userId) {
+        const session = supabaseAuth.getSession();
+        if (!session) throw new Error('未登录');
+        const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?user_id=eq.' + userId + '&order=created_at.desc&limit=20', {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + session.access_token
+            }
+        });
+        return res.json();
+    },
+    async selectAll(table, filters = {}) {
+        const session = supabaseAuth.getSession();
+        if (!session) throw new Error('未登录');
+        let url = SUPABASE_URL + '/rest/v1/' + table + '?select=*,profiles(email,role)&order=created_at.desc&limit=200';
+        if (filters.country) url += '&country=eq.' + encodeURIComponent(filters.country);
+        if (filters.month) url += '&calc_month=eq.' + encodeURIComponent(filters.month);
+        const res = await fetch(url, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + session.access_token
+            }
+        });
+        return res.json();
+    },
+    async checkAdmin(userId) {
+        const session = supabaseAuth.getSession();
+        if (!session) return false;
+        const res = await fetch(SUPABASE_URL + '/rest/v1/profiles?id=eq.' + userId + '&select=role', {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + session.access_token
+            }
+        });
+        const data = await res.json();
+        return data.length > 0 && data[0].role === 'admin';
+    }
+};
+
+// ─── 核算引擎 ──────────────────────────────────────────
+const 核算引擎 = (() => {
+    const SPECIAL_COUNTRIES = ['JP','KR','DE','ES','GB','FR','RO','PL','CZ'];
+    const SPECIAL_MONTHS = [{year:2026,month:4},{year:2026,month:5},{year:2026,month:6}];
+    function isSpecialCountryRule(c,y,m){if(!c)return false;const code=c.toUpperCase().split('-')[0];return SPECIAL_COUNTRIES.includes(code)&&SPECIAL_MONTHS.some(s=>s.year===y&&s.month===m)}
+    function getTimeCoeff(e,y,m){if(e.country==='FR'&&e.franceTimeCoeff)return e.franceTimeCoeff;const ms=new Date(y,m-1,1),me=new Date(y,m,0),td=me.getDate();let as=e.hireDate>ms?e.hireDate:ms,ae=e.termDate&&e.termDate<me?e.termDate:me;if(as>ae)return 0;return(Math.floor((ae-as)/86400000)+1)/td}
+    function getProtectionType(e,s,d){if(s.isClosed)return'闭店保护';if(!s.storeOpenDate||d<s.storeOpenDate)return'未开业保护';const td=s.storeOpenDate.getDate(),pe=new Date(s.storeOpenDate.getFullYear(),s.storeOpenDate.getMonth()+(td<15?2:3),0);if(d<=pe)return'新开店保护';const ds=Math.floor((d-e.hireDate)/86400000);if(ds<=30&&!e.hasSalesTarget)return'新入职员工保护';return'正常'}
+    function getStoreCoeff(s,p,t,r){if(p!=='正常')return 1;if(t)return 1;if(r){if(s.storeAchievementRate>=0.8)return 1;if(s.storeAchievementRate>=0.6)return 0.8;return 0}return s.storeAchievementRate>=0.8?1:0}
+    function mapScoreToCoeff(s){if(s==='无目标')return 1;if(s>=120)return 1.3;if(s>=90)return s/100;if(s>=80)return 0.8;return 0}
+    function mapScoreToCoeffSpecial(s){if(s==='无目标')return 1;if(s>=120)return 1.3;if(s>=70)return s/100;return 0}
+    function getTransferPersonalCoeff(ti,to,td,md,r){const fn=r?mapScoreToCoeffSpecial:mapScoreToCoeff;let oc=0.8;if(to!==null&&to!==undefined&&to!=='')oc=fn(to);let ic=0.8;if(ti!==null&&ti!==undefined&&ti!=='')ic=fn(ti);return oc*(td-1)/md+ic*(md-td+1)/md}
+    function getPersonalCoeff(s,p,t,pr,to,td,md,r){let bc=r?mapScoreToCoeffSpecial(s):mapScoreToCoeff(s);switch(p){case'新开店保护':case'闭店保护':case'新入职员工保护':return Math.max(bc,0.8);case'未开业保护':return pr!=null?pr:bc;default:if(t)return getTransferPersonalCoeff(s,to,td,md,r);return bc}}
+    function calculatePerformanceCoeff(e,s,y,m){const me=new Date(y,m,0),md=me.getDate(),tc=getTimeCoeff(e,y,m);if(e.specialCoeff!=null&&e.specialCoeff!==''){const sc=parseFloat(e.specialCoeff);if(!isNaN(sc))return{timeCoeff:Math.round(tc*1000)/1000,storeCoeff:1,personalCoeff:sc,protectionType:'特殊保护',finalCoeff:Math.round(tc*sc*1000)/1000}}const ir=isSpecialCountryRule(e.country,y,m),pt=getProtectionType(e,s,me),stc=getStoreCoeff(s,pt,s.isTransfer,ir),pc=getPersonalCoeff(e.personalScore,pt,s.isTransfer,e.preOpenCoeff,s.transferOutScore,s.transferDay,md,ir),fc=tc*stc*pc;return{timeCoeff:Math.round(tc*1000)/1000,storeCoeff:stc,personalCoeff:Math.round(pc*1000)/1000,protectionType:pt,finalCoeff:Math.round(fc*1000)/1000}}
+    return{计算:calculatePerformanceCoeff}
+})();
+
+// ─── 国家映射 ──────────────────────────────────────────
+const COUNTRY_NAME_MAP={'中国':'CN','中国香港':'HK','中国台湾':'TW','阿联酋':'UAE','法国':'FR','新加坡':'SG','马来西亚':'MY','泰国':'TH','印尼':'ID','智利':'CL','越南':'VN','韩国':'KR','日本':'JP','哈萨克斯坦':'KZ','西班牙':'ES','德国':'DE','英国':'GB','秘鲁':'PE','哥伦比亚':'CO','墨西哥':'MX','波兰':'PL','捷克':'CZ','罗马尼亚':'RO','摩洛哥':'MA','马来':'MY','香港':'HK','台湾':'TW','迪拜':'UAE'};
+const COUNTRY_CODE_TO_NAME={'CN':'中国','HK':'中国香港','TW':'中国台湾','UAE':'阿联酋','FR':'法国','SG':'新加坡','MY':'马来西亚','TH':'泰国','ID':'印尼','CL':'智利','VN':'越南','KR':'韩国','JP':'日本','KZ':'哈萨克斯坦','ES':'西班牙','DE':'德国','GB':'英国','PE':'秘鲁','CO':'哥伦比亚','MX':'墨西哥','PL':'波兰','CZ':'捷克','RO':'罗马尼亚','MA':'摩洛哥'};
+function normalizeCountry(v){if(!v)return'';const t=v.trim();if(COUNTRY_NAME_MAP[t])return COUNTRY_NAME_MAP[t];const u=t.toUpperCase();return Object.values(COUNTRY_NAME_MAP).includes(u)?u:u}
+function formatCountry(c){if(!c)return'-';const n=COUNTRY_CODE_TO_NAME[c];return n?c+'-'+n:c}
+
+// ─── 国际化 ──────────────────────────────────────────
+const I18N={zh:{basicInfo:'基础信息',country:'国家',calcMonth:'绩效所属月份',empId:'人员ID',storeOpenDate:'门店试营业日期',hireDate:'入职时间',isResigned:'是否已离职',termDate:'离职时间',storeAndPerf:'门店与绩效',storeRate:'门店GMV达成率 (%)',personalScore:'人员绩效得分',isTransfer:'是否发生调店',transferDate:'调店日期',transferOutScore:'调出店个人绩效得分',preOpenCoeff:'开业前个人系数',specialScene:'特殊场景',isNotOpen:'门店未试营业/未开业',isClosed:'是否闭店保护',specialCoeff:'特殊保护系数',hasSalesTarget:'入职当月有无销售目标',calcBtn:'开始核算',finalBonusTitle:'综合绩效系数',timeCoeffLabel:'时间系数',storeCoeffLabel:'门店系数',personalCoeffLabel:'个人系数',protectionTypeLabel:'保护类型',finalCoeffLabel:'综合绩效系数',calcFormula:'计算公式过程'},en:{basicInfo:'Basic Info',country:'Country',calcMonth:'Calc Month',empId:'Employee ID',storeOpenDate:'Store Trial Date',hireDate:'Hire Date',isResigned:'Has Resigned',termDate:'Termination Date',storeAndPerf:'Store & Performance',storeRate:'Store Achievement Rate (%)',personalScore:'Personal Score',isTransfer:'Store Transfer',transferDate:'Transfer Date',transferOutScore:'Transfer Out Score',preOpenCoeff:'Pre-Opening Coeff',specialScene:'Special Cases',isNotOpen:'Store Not Opened',isClosed:'Closed Protection',specialCoeff:'Special Protection Coeff',hasSalesTarget:'Has Sales Target',calcBtn:'Calculate',finalBonusTitle:'Comprehensive Coefficient',timeCoeffLabel:'Time Coeff',storeCoeffLabel:'Store Coeff',personalCoeffLabel:'Personal Coeff',protectionTypeLabel:'Protection Type',finalCoeffLabel:'Comprehensive Coeff',calcFormula:'Calculation Process'},ko:{basicInfo:'기본 정보',country:'국가',calcMonth:'계산 월',empId:'직원 ID',storeOpenDate:'매장 시범운영일',hireDate:'입사일',isResigned:'퇴사 여부',termDate:'퇴사일',storeAndPerf:'매장 및 성과',storeRate:'매장 달성률 (%)',personalScore:'개인 점수',isTransfer:'매장 이동',transferDate:'이동일',transferOutScore:'이전 매장 점수',preOpenCoeff:'개업 전 계수',specialScene:'특수 상황',isNotOpen:'매장 미개업',isClosed:'폐점 보호',specialCoeff:'특수 보호 계수',hasSalesTarget:'판매 목표 있음',calcBtn:'계산',finalBonusTitle:'종합 계수',timeCoeffLabel:'시간 계수',storeCoeffLabel:'매장 계수',personalCoeffLabel:'개인 계수',protectionTypeLabel:'보호 유형',finalCoeffLabel:'종합 계수',calcFormula:'계산 과정'},ja:{basicInfo:'基本情報',country:'国',calcMonth:'計算月',empId:'従業員ID',storeOpenDate:'店舗試験営業日',hireDate:'入社日',isResigned:'退職済み',termDate:'退職日',storeAndPerf:'店舗とパフォーマンス',storeRate:'店舗達成率 (%)',personalScore:'個人スコア',isTransfer:'店舗異動',transferDate:'異動日',transferOutScore:'異動前スコア',preOpenCoeff:'開業前係数',specialScene:'特別ケース',isNotOpen:'店舗未営業',isClosed:'閉店保護',specialCoeff:'特別保護係数',hasSalesTarget:'販売目標あり',calcBtn:'計算',finalBonusTitle:'総合係数',timeCoeffLabel:'時間係数',storeCoeffLabel:'店舗係数',personalCoeffLabel:'個人係数',protectionTypeLabel:'保護タイプ',finalCoeffLabel:'総合係数',calcFormula:'計算プロセス'}};
+let curLang=localStorage.getItem('pf_lang')||'zh';
+function changeLang(){curLang=document.getElementById('langSelector').value;localStorage.setItem('pf_lang',curLang);applyLang()}
+function applyLang(){document.getElementById('langSelector').value=curLang;document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(I18N[curLang]&&I18N[curLang][k])el.textContent=I18N[curLang][k]})}
+
+// ─── 认证逻辑 ──────────────────────────────────────────
+let currentUser = null;
+let isAdmin = false;
+
+async function checkAuth() {
+    const session = supabaseAuth.getSession();
+    if (session) {
+        currentUser = session.user;
+        isAdmin = await supabaseDB.checkAdmin(currentUser.id);
+        showApp();
+    } else {
+        showAuth();
+    }
+}
+
+function showAuth() {
+    document.getElementById('authPage').classList.remove('hidden');
+    document.getElementById('appPage').classList.add('hidden');
+}
+
+function showApp() {
+    document.getElementById('authPage').classList.add('hidden');
+    document.getElementById('appPage').classList.remove('hidden');
+    document.getElementById('userInfo').textContent = currentUser.email;
+    document.getElementById('adminBtn').classList.toggle('hidden', !isAdmin);
+    initCalcMonth();
+    applyLang();
+    loadHistory();
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab')[tab === 'login' ? 0 : 1].classList.add('active');
+    document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+    document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
+    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('regError').style.display = 'none';
+}
+
+async function login() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showError('loginError', '请输入邮箱和密码'); return; }
+
+    try {
+        const data = await supabaseAuth.signIn(email, password);
+        if (data.error) { showError('loginError', data.error_description || data.error); return; }
+        if (data.access_token) {
+            supabaseAuth.saveSession(data.access_token, data.user);
+            currentUser = data.user;
+            showApp();
+        } else {
+            showError('loginError', '登录失败');
+        }
+    } catch (err) {
+        showError('loginError', '网络错误: ' + err.message);
+    }
+}
+
+async function register() {
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    if (!email || !password) { showError('regError', '请输入邮箱和密码'); return; }
+    if (password.length < 6) { showError('regError', '密码至少6位'); return; }
+
+    try {
+        const data = await supabaseAuth.signUp(email, password);
+        if (data.error) { showError('regError', data.error_description || data.error); return; }
+        if (data.access_token) {
+            supabaseAuth.saveSession(data.access_token, data.user);
+            currentUser = data.user;
+            showApp();
+        } else {
+            showError('regError', '注册成功！请登录');
+            document.getElementById('regError').style.color = '#10B981';
+        }
+    } catch (err) {
+        showError('regError', '网络错误: ' + err.message);
+    }
+}
+
+function logout() {
+    supabaseAuth.signOut();
+    currentUser = null;
+    showAuth();
+}
+
+function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.color = '#EF4444';
+}
+
+// ─── 初始化 ──────────────────────────────────────────
+const MONTHS = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+function initCalcMonth() {
+    const yearSelect = document.getElementById('calcYear');
+    const monthSelect = document.getElementById('calcMonth');
+    const now = new Date();
+    yearSelect.innerHTML = '';
+    for (let y = 2024; y <= 2034; y++) { const opt = document.createElement('option'); opt.value = y; opt.textContent = y + '年'; yearSelect.appendChild(opt); }
+    yearSelect.value = now.getFullYear();
+    monthSelect.innerHTML = '';
+    MONTHS.forEach((m, i) => { const opt = document.createElement('option'); opt.value = m; opt.textContent = MONTH_NAMES[i]; monthSelect.appendChild(opt); });
+    monthSelect.value = String(now.getMonth() + 1).padStart(2, '0');
+}
+
+function getCalcMonth() { return document.getElementById('calcYear').value + '-' + document.getElementById('calcMonth').value; }
+
+function parseDate(str) {
+    if (!str) return null;
+    if (typeof str === 'number' && str > 25569) { const d = new Date((str - 25569) * 86400000); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+    const [y, m, d] = String(str).split('-'); return new Date(y, m - 1, d);
+}
+
+function toggleStoreOpen(isNotOpen) {
+    if (isNotOpen) document.getElementById('storeOpenDate').value = '';
+    document.getElementById('preOpenCoeffGroup').style.display = isNotOpen ? 'block' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => { checkAuth(); });
+
+// ─── 核算逻辑 ──────────────────────────────────────────
+async function calculate() {
+    const form = document.getElementById('calcForm');
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const calcMonth = getCalcMonth();
+    const [calcYear, calcM] = calcMonth.split('-');
+    const country = document.getElementById('country').value;
+    const empId = document.getElementById('empId').value || '-';
+    const hireDate = parseDate(document.getElementById('hireDate').value);
+    const termDate = document.getElementById('isResigned').checked ? parseDate(document.getElementById('termDate').value) : null;
+    const hasSalesTarget = document.getElementById('hasSalesTarget').checked;
+
+    if (termDate && hireDate && termDate <= hireDate) { showToast('离职时间必须晚于入职时间'); return; }
+
+    const scoreVal = document.getElementById('personalScore').value.trim();
+    let personalScore;
+    if (scoreVal === '' || scoreVal === '无目标') { personalScore = '无目标'; }
+    else { personalScore = parseFloat(scoreVal); if (isNaN(personalScore)) { showToast('请输入有效的个人绩效得分'); return; } }
+
+    const employee = {
+        country, hireDate, termDate, hasSalesTarget, personalScore, franceTimeCoeff: null,
+        preOpenCoeff: document.getElementById('preOpenCoeffGroup').style.display !== 'none' ? parseFloat(document.getElementById('preOpenCoeff').value) : null,
+        specialCoeff: document.getElementById('specialCoeffGroup').style.display !== 'none' && document.getElementById('specialCoeff').value ? parseFloat(document.getElementById('specialCoeff').value) : null
+    };
+
+    const storeOpenDate = document.getElementById('isNotOpen').checked ? null : parseDate(document.getElementById('storeOpenDate').value);
+    const isTransfer = document.getElementById('isTransfer').checked;
+    const transferDateVal = isTransfer ? document.getElementById('transferDate').value : '';
+    const transferDate = transferDateVal ? parseDate(transferDateVal) : null;
+    const transferDay = transferDate ? transferDate.getDate() : null;
+    const transferOutScoreVal = isTransfer ? document.getElementById('transferOutScore').value.trim() : '';
+    let transferOutScore = null;
+    if (transferOutScoreVal === '无目标') { transferOutScore = '无目标'; }
+    else if (transferOutScoreVal) { transferOutScore = parseFloat(transferOutScoreVal); if (isNaN(transferOutScore)) { showToast('请输入有效的调出店绩效得分'); return; } }
+
+    const store = { storeOpenDate, storeAchievementRate: parseFloat(document.getElementById('storeRate').value), isTransfer, isClosed: document.getElementById('isClosed').checked, transferDay, transferOutScore };
+
+    const result = 核算引擎.计算(employee, store, parseInt(calcYear), parseInt(calcM));
+    showResult(result);
+
+    // 保存到 Supabase
+    try {
+        await supabaseDB.insert('calculations', {
+            user_id: currentUser.id,
+            user_email: currentUser.email,
+            country: formatCountry(country),
+            calc_month: calcMonth,
+            emp_id: empId,
+            time_coeff: result.timeCoeff,
+            store_coeff: result.storeCoeff,
+            personal_coeff: result.personalCoeff,
+            protection_type: result.protectionType,
+            final_coeff: result.finalCoeff
+        });
+        loadHistory();
+    } catch (err) { console.error('保存失败:', err); }
+}
+
+function showResult(result) {
+    document.getElementById('resultSection').style.display = 'block';
+    document.getElementById('resTimeCoeff').textContent = result.timeCoeff;
+    document.getElementById('resStoreCoeff').textContent = result.storeCoeff;
+    document.getElementById('resPersonalCoeff').textContent = result.personalCoeff;
+    document.getElementById('resProtectionType').textContent = result.protectionType;
+    document.getElementById('resFinalCoeff').textContent = result.finalCoeff;
+
+    const badge = document.getElementById('resBadge');
+    badge.textContent = result.protectionType;
+    const badgeMap = { '正常':'badge-normal','新开店保护':'badge-newstore','未开业保护':'badge-notopen','闭店保护':'badge-closed','新入职员工保护':'badge-newemp','特殊保护':'badge-special' };
+    badge.className = 'badge ' + (badgeMap[result.protectionType] || 'badge-normal');
+
+    document.getElementById('resProcess').innerHTML = '<div>时间系数(' + result.timeCoeff + ') × 门店系数(' + result.storeCoeff + ') × 个人系数(' + result.personalCoeff + ') = ' + result.finalCoeff + '</div>';
+    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    showToast('核算完成');
+}
+
+// ─── 历史记录 ──────────────────────────────────────────
+async function loadHistory() {
+    try {
+        const data = await supabaseDB.select('calculations', currentUser.id);
+        const container = document.getElementById('historyContent');
+        if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">暂无记录</div>'; return; }
+
+        let html = '<table class="history-table"><thead><tr><th>时间</th><th>月份</th><th>国家</th><th>保护类型</th><th>综合系数</th></tr></thead><tbody>';
+        data.forEach(r => {
+            const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-';
+            const month = (r.calc_month || '').replace('-', '/');
+            html += '<tr><td>' + time + '</td><td>' + month + '</td><td>' + (r.country || '-') + '</td><td>' + (r.protection_type || '-') + '</td><td style="font-weight:700;color:#FF6900">' + (r.final_coeff ?? '-') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    } catch (err) { console.error('加载历史失败:', err); }
+}
+
+// ─── 管理员功能 ──────────────────────────────────────────
+function openAdmin() {
+    document.getElementById('adminPanel').classList.add('active');
+    loadAdminRecords();
+}
+
+function closeAdmin() {
+    document.getElementById('adminPanel').classList.remove('active');
+}
+
+async function loadAdminRecords() {
+    const country = document.getElementById('adminFilterCountry').value;
+    const month = document.getElementById('adminFilterMonth').value;
+    const session = supabaseAuth.getSession();
+    if (!session) return;
+
+    try {
+        // 构建查询
+        let query = 'select=*,profiles!inner(role)&order=created_at.desc&limit=200';
+        if (country) query += '&country=eq.' + country;
+        if (month) query += '&calc_month=eq.' + month;
+
+        const res = await fetch(SUPABASE_URL + '/rest/v1/calculations?' + query, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + session.access_token
+            }
+        });
+        const data = await res.json();
+
+        // 更新统计
+        const total = data.length;
+        const users = new Set(data.map(r => r.user_id)).size;
+        const countries = new Set(data.map(r => r.country)).size;
+        const avg = total > 0 ? (data.reduce((s, r) => s + (parseFloat(r.final_coeff) || 0), 0) / total).toFixed(3) : '0';
+
+        document.getElementById('adminTotal').textContent = total;
+        document.getElementById('adminUsers').textContent = users;
+        document.getElementById('adminCountries').textContent = countries;
+        document.getElementById('adminAvg').textContent = avg;
+        document.getElementById('adminRecordCount').textContent = '共 ' + total + ' 条记录';
+
+        // 渲染表格
+        const tbody = document.getElementById('adminTableBody');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-sec);padding:40px">暂无记录</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map((r, i) => {
+            const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : '-';
+            const month = (r.calc_month || '').replace('-', '/');
+            const protBadge = r.protection_type === '正常' ? 'badge-normal' : 'badge-newstore';
+            return '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td>' + time + '</td>' +
+                '<td>' + month + '</td>' +
+                '<td>' + (r.country || '-') + '</td>' +
+                '<td>' + (r.emp_id || '-') + '</td>' +
+                '<td>' + (r.user_email || '-') + '</td>' +
+                '<td><span class="badge ' + protBadge + '" style="font-size:11px;padding:3px 8px;">' + (r.protection_type || '-') + '</span></td>' +
+                '<td style="font-weight:700;color:#FF6900">' + (r.final_coeff ?? '-') + '</td>' +
+                '</tr>';
+        }).join('');
+    } catch (err) {
+        console.error('加载管理员记录失败:', err);
+        showToast('加载失败: ' + err.message);
+    }
+}
+
+// ─── Toast ──────────────────────────────────────────
+let toastTimer;
+function showToast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2500); }
+</script>
+</body>
+</html>
