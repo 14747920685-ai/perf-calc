@@ -466,20 +466,354 @@ const supabaseDB = {
 };
 
 // ─── 核算引擎 ──────────────────────────────────────────
+/**
+ * 绩效系数核算引擎
+ * 
+ * 职责：计算时间系数、门店系数、个人系数、综合绩效系数
+ * 来源：规则/保护期规则.md + 规则/分数系数映射表.md
+ * 
+ * 核算优先级：
+ *   1. 先判断所有日期信息（门店试营业日期、入职日期）是否属于保护范畴
+ *   2. 再做达成率和得分核算
+ * 
+ * 使用方式：
+ *   <script src="核算引擎.js"></script>
+ *   const result = 核算引擎.计算(员工数据, 门店数据, 2026, 5);
+ */
+
+/**
+ * 绩效系数核算引擎
+ * 
+ * 职责：计算时间系数、门店系数、个人系数、综合绩效系数
+ * 来源：规则/保护期规则.md + 规则/分数系数映射表.md
+ * 
+ * 核算优先级：
+ *   1. 先判断所有日期信息（门店试营业日期、入职日期）是否属于保护范畴
+ *   2. 再做达成率和得分核算
+ * 
+ * 使用方式：
+ *   <script src="核算引擎.js"></script>
+ *   const result = 核算引擎.计算(员工数据, 门店数据, 2026, 5);
+ */
+
 const 核算引擎 = (() => {
-    const SPECIAL_COUNTRIES = ['JP','KR','DE','ES','GB','FR','RO','PL','CZ'];
-    const SPECIAL_MONTHS = [{year:2026,month:4},{year:2026,month:5},{year:2026,month:6}];
-    function isSpecialCountryRule(c,y,m){if(!c)return false;const code=c.toUpperCase().split('-')[0];return SPECIAL_COUNTRIES.includes(code)&&SPECIAL_MONTHS.some(s=>s.year===y&&s.month===m)}
-    function getTimeCoeff(e,y,m){if(e.country==='FR'&&e.franceTimeCoeff)return e.franceTimeCoeff;const ms=new Date(y,m-1,1),me=new Date(y,m,0),td=me.getDate();let as=e.hireDate>ms?e.hireDate:ms,ae=e.termDate&&e.termDate<me?e.termDate:me;if(as>ae)return 0;return(Math.floor((ae-as)/86400000)+1)/td}
-    function getProtectionType(e,s,d){if(s.isClosed)return'闭店保护';if(!s.storeOpenDate||d<s.storeOpenDate)return'未开业保护';const td=s.storeOpenDate.getDate(),pe=new Date(s.storeOpenDate.getFullYear(),s.storeOpenDate.getMonth()+(td<15?2:3),0);if(d<=pe)return'新开店保护';const ds=Math.floor((d-e.hireDate)/86400000);if(ds<=30&&!e.hasSalesTarget)return'新入职员工保护';return'正常'}
-    function getStoreCoeff(s,p,t,r){if(p!=='正常')return 1;if(t)return 1;if(r){if(s.storeAchievementRate>=0.8)return 1;if(s.storeAchievementRate>=0.6)return 0.8;return 0}return s.storeAchievementRate>=0.8?1:0}
-    function mapScoreToCoeff(s){if(s==='无目标')return 1;if(s>=120)return 1.3;if(s>=90)return s/100;if(s>=80)return 0.8;return 0}
-    function mapScoreToCoeffSpecial(s){if(s==='无目标')return 1;if(s>=120)return 1.3;if(s>=70)return s/100;return 0}
-    function getTransferPersonalCoeff(ti,to,td,md,r){const fn=r?mapScoreToCoeffSpecial:mapScoreToCoeff;let oc=0.8;if(to!==null&&to!==undefined&&to!=='')oc=fn(to);let ic=0.8;if(ti!==null&&ti!==undefined&&ti!=='')ic=fn(ti);return oc*(td-1)/md+ic*(md-td+1)/md}
-    function getPersonalCoeff(s,p,t,pr,to,td,md,r){let bc=r?mapScoreToCoeffSpecial(s):mapScoreToCoeff(s);switch(p){case'新开店保护':case'闭店保护':case'新入职员工保护':return Math.max(bc,0.8);case'未开业保护':return pr!=null?pr:bc;default:if(t)return getTransferPersonalCoeff(s,to,td,md,r);return bc}}
-    function calculatePerformanceCoeff(e,s,y,m){const me=new Date(y,m,0),md=me.getDate(),tc=getTimeCoeff(e,y,m);if(e.specialCoeff!=null&&e.specialCoeff!==''){const sc=parseFloat(e.specialCoeff);if(!isNaN(sc))return{timeCoeff:Math.round(tc*1000)/1000,storeCoeff:1,personalCoeff:sc,protectionType:'特殊保护',finalCoeff:Math.round(tc*sc*1000)/1000}}const ir=isSpecialCountryRule(e.country,y,m),pt=getProtectionType(e,s,me),stc=getStoreCoeff(s,pt,s.isTransfer,ir),pc=getPersonalCoeff(e.personalScore,pt,s.isTransfer,e.preOpenCoeff,s.transferOutScore,s.transferDay,md,ir),fc=tc*stc*pc;return{timeCoeff:Math.round(tc*1000)/1000,storeCoeff:stc,personalCoeff:Math.round(pc*1000)/1000,protectionType:pt,finalCoeff:Math.round(fc*1000)/1000}}
-    return{计算:calculatePerformanceCoeff}
+
+    // ─── 特殊国家规则配置 ─────────────────────────────────────
+    // 这些国家在特定月份有差异化的系数映射规则
+    const SPECIAL_COUNTRIES = ['JP', 'KR', 'DE', 'ES', 'GB', 'FR', 'RO', 'PL', 'CZ'];
+    const SPECIAL_MONTHS = [
+        { year: 2026, month: 4 },  // 2026年4月
+        { year: 2026, month: 5 },  // 2026年5月
+        { year: 2026, month: 6 }   // 2026年6月
+    ];
+
+    // 国家中文名→代码映射
+    const COUNTRY_NAME_TO_CODE = {
+        '中国': 'CN', '中国香港': 'HK', '中国台湾': 'TW',
+        '阿联酋': 'UAE', '法国': 'FR', '新加坡': 'SG',
+        '马来西亚': 'MY', '泰国': 'TH', '印尼': 'ID',
+        '智利': 'CL', '越南': 'VN', '韩国': 'KR', '日本': 'JP',
+        '哈萨克斯坦': 'KZ', '西班牙': 'ES', '德国': 'DE',
+        '英国': 'GB', '秘鲁': 'PE', '哥伦比亚': 'CO',
+        '墨西哥': 'MX', '波兰': 'PL', '捷克': 'CZ',
+        '罗马尼亚': 'RO', '摩洛哥': 'MA', '澳门': 'MO',
+        // 常见别名
+        '马来': 'MY', '马国': 'MY', '大马': 'MY', '马来西': 'MY',
+        '香港': 'HK', '台湾': 'TW', '韩': 'KR', '南韩': 'KR',
+        '日': 'JP', '德': 'DE', '西': 'ES', '英': 'GB', '法': 'FR',
+        '迪拜': 'UAE', '阿联': 'UAE'
+    };
+
+    /**
+     * 国家名称标准化为代码
+     * @param {string} country - 国家名称或代码
+     * @returns {string} 国家代码
+     */
+    function normalizeCountryCode(country) {
+        if (!country) return '';
+        const trim = country.trim();
+        if (!trim) return '';
+        // 1. 中文名映射（优先）
+        if (COUNTRY_NAME_TO_CODE[trim]) return COUNTRY_NAME_TO_CODE[trim];
+        // 2. 去除"国/州/区"后缀后匹配
+        const trimmed = trim.replace(/[国州区]$/, '');
+        if (COUNTRY_NAME_TO_CODE[trimmed]) return COUNTRY_NAME_TO_CODE[trimmed];
+        // 3. 已经是代码格式（如 "FR" 或 "FR-法国"）
+        const codePart = trim.split('-')[0].toUpperCase();
+        return codePart;
+    }
+
+    /**
+     * 判断是否适用特殊国家规则
+     * @param {string} country - 国家代码或名称
+     * @param {number} calcYear
+     * @param {number} calcMonth
+     * @returns {boolean}
+     */
+    function isSpecialCountryRule(country, calcYear, calcMonth) {
+        if (!country) return false;
+        const code = normalizeCountryCode(country);
+        if (!SPECIAL_COUNTRIES.includes(code)) return false;
+        return SPECIAL_MONTHS.some(m => m.year === calcYear && m.month === calcMonth);
+    }
+
+    /**
+     * 时间系数计算
+     * @param {Object} employee - { country, hireDate, termDate, franceTimeCoeff }
+     * @param {number} calcYear
+     * @param {number} calcMonth
+     * @returns {number} 0~1 之间的时间系数
+     */
+    function getTimeCoeff(employee, calcYear, calcMonth) {
+        if (employee.country === 'FR' && employee.franceTimeCoeff) {
+            return employee.franceTimeCoeff;
+        }
+        const monthStart = new Date(calcYear, calcMonth - 1, 1);
+        const monthEnd = getMonthEnd(calcYear, calcMonth);
+        const totalDays = monthEnd.getDate();
+        let actualStart = employee.hireDate > monthStart ? employee.hireDate : monthStart;
+        let actualEnd = employee.termDate && employee.termDate < monthEnd ? employee.termDate : monthEnd;
+        if (actualStart > actualEnd) return 0;
+        const workDays = Math.floor((actualEnd - actualStart) / 86400000) + 1;
+        return workDays / totalDays;
+    }
+
+    /**
+     * 保护类型判断（优先级最高，基于日期信息）
+     * 判断顺序：闭店 → 未开业 → 新开店保护期 → 新入职员工 → 正常
+     * @param {Object} employee - { hireDate, hasSalesTarget }
+     * @param {Object} store - { storeOpenDate, isClosed }
+     * @param {Date} calcDate - 月末日期
+     * @returns {string} 闭店保护/未开业保护/新开店保护/新入职员工保护/正常
+     */
+    function getProtectionType(employee, store, calcDate) {
+        // 1. 闭店保护（最高优先级）
+        if (store.isClosed) return '闭店保护';
+
+        // 2. 未开业保护（门店尚未开业）
+        if (!store.storeOpenDate || calcDate < store.storeOpenDate) return '未开业保护';
+
+        // 3. 新开店保护期（根据试营业日期判断）
+        const trialDay = store.storeOpenDate.getDate();
+        const protectionEnd = new Date(
+            store.storeOpenDate.getFullYear(),
+            store.storeOpenDate.getMonth() + (trialDay < 15 ? 2 : 3),
+            0
+        );
+        if (calcDate <= protectionEnd) return '新开店保护';
+
+        // 4. 新入职员工保护（入职30天内且无销售目标）
+        const daysSinceHire = Math.floor((calcDate - employee.hireDate) / 86400000);
+        if (daysSinceHire <= 30 && !employee.hasSalesTarget) return '新入职员工保护';
+
+        // 5. 正常（无保护）
+        return '正常';
+    }
+
+    /**
+     * 门店系数计算（基于保护类型）
+     * 保护状态下门店系数=1，否则根据GMV达成率判断
+     * @param {Object} store - { storeAchievementRate }
+     * @param {string} protectionType - 保护类型
+     * @param {boolean} isTransfer - 是否调店
+     * @param {boolean} isSpecialRule - 是否适用特殊国家规则
+     * @returns {number} 0, 0.8 或 1
+     */
+    function getStoreCoeff(store, protectionType, isTransfer, isSpecialRule) {
+        // 保护状态下门店系数直接为1
+        if (protectionType !== '正常') return 1.0;
+        // 调店也返回1
+        if (isTransfer) return 1.0;
+        // 特殊国家规则：三档映射
+        if (isSpecialRule) {
+            if (store.storeAchievementRate >= 0.8) return 1.0;
+            if (store.storeAchievementRate >= 0.6) return 0.8;
+            return 0.0;
+        }
+        // 正常情况：二档映射
+        return store.storeAchievementRate >= 0.8 ? 1.0 : 0.0;
+    }
+
+    /**
+     * 得分映射为系数（标准规则）
+     * @param {number|string} score - 绩效得分或"无目标"
+     * @returns {number} 系数
+     */
+    function mapScoreToCoeff(score) {
+        if (score === '无目标') return 1.0;
+        if (score >= 120) return 1.3;
+        if (score >= 90) return score / 100;
+        if (score >= 80) return 0.8;
+        return 0.0;
+    }
+
+    /**
+     * 得分映射为系数（特殊国家规则）
+     * 阈值：70/120，无0.8保底档
+     * @param {number|string} score - 绩效得分或"无目标"
+     * @returns {number} 系数
+     */
+    function mapScoreToCoeffSpecial(score) {
+        if (score === '无目标') return 1.0;
+        if (score >= 120) return 1.3;
+        if (score >= 70) return score / 100;
+        return 0.0;
+    }
+
+    /**
+     * 调店场景个人系数计算
+     * 根据实际调店日期进行时间加权
+     * @param {number|string} transferInScore - 调入店绩效得分
+     * @param {number|string|null} transferOutScore - 调出店绩效得分
+     * @param {number} transferDay - 调店日期（当月第几天）
+     * @param {number} monthDays - 当月总天数
+     * @param {boolean} isSpecialRule - 是否适用特殊国家规则
+     * @returns {number} 个人系数
+     */
+    function getTransferPersonalCoeff(transferInScore, transferOutScore, transferDay, monthDays, isSpecialRule) {
+        const mapFn = isSpecialRule ? mapScoreToCoeffSpecial : mapScoreToCoeff;
+        
+        // 调出店系数：有目标按得分映射，无目标按0.8
+        let transferOutCoeff = 0.8;
+        if (transferOutScore !== null && transferOutScore !== undefined && transferOutScore !== '') {
+            transferOutCoeff = mapFn(transferOutScore);
+        }
+        
+        // 调入店系数：有目标按得分映射，无目标按0.8
+        let transferInCoeff = 0.8;
+        if (transferInScore !== null && transferInScore !== undefined && transferInScore !== '') {
+            transferInCoeff = mapFn(transferInScore);
+        }
+        
+        // 时间权重：调店前为调出店，调店当天及之后为调入店
+        const transferOutWeight = (transferDay - 1) / monthDays;
+        const transferInWeight = (monthDays - transferDay + 1) / monthDays;
+        
+        // 加权计算
+        return transferOutCoeff * transferOutWeight + transferInCoeff * transferInWeight;
+    }
+
+    /**
+     * 个人系数计算（基于保护类型和得分）
+     * @param {number|string} score - 绩效得分或"无目标"
+     * @param {string} protectionType - 保护类型
+     * @param {boolean} isTransfer - 是否调店
+     * @param {number|null} preOpenCoeff - 开业前个人系数（未开业保护时使用）
+     * @param {number|string|null} transferOutScore - 调出店绩效得分（调店时使用）
+     * @param {number|null} transferDay - 调店日期（当月第几天，调店时使用）
+     * @param {number} monthDays - 当月总天数（调店时使用）
+     * @param {boolean} isSpecialRule - 是否适用特殊国家规则
+     * @returns {number}
+     */
+    function getPersonalCoeff(score, protectionType, isTransfer, preOpenCoeff, transferOutScore, transferDay, monthDays, isSpecialRule) {
+        // 计算基础系数（得分映射）
+        let baseCoeff = isSpecialRule ? mapScoreToCoeffSpecial(score) : mapScoreToCoeff(score);
+
+        // 根据保护类型应用保底规则
+        switch (protectionType) {
+            case '新开店保护':
+            case '闭店保护':
+            case '新入职员工保护':
+                // 保护期个人系数保底0.8
+                return Math.max(baseCoeff, 0.8);
+            case '未开业保护':
+                // 未开业保护：使用开业前个人系数，未指定则用得分映射
+                return preOpenCoeff != null ? preOpenCoeff : baseCoeff;
+            default:
+                // 正常情况
+                if (isTransfer) {
+                    // 调店场景：两段加权
+                    return getTransferPersonalCoeff(score, transferOutScore, transferDay, monthDays, isSpecialRule);
+                }
+                return baseCoeff;
+        }
+    }
+
+    function getMonthEnd(year, month) {
+        return new Date(year, month, 0);
+    }
+
+    /**
+     * 主入口：计算综合绩效系数
+     * 核算流程：先判断保护类型（日期）→ 再计算系数（达成率/得分）
+     * @param {Object} employee - { country, hireDate, termDate, personalScore, franceTimeCoeff, preOpenCoeff, specialCoeff }
+     * @param {Object} store - { storeOpenDate, storeAchievementRate, isTransfer, transferDay, transferOutScore, isClosed }
+     * @param {number} calcYear
+     * @param {number} calcMonth
+     * @returns {Object} { timeCoeff, storeCoeff, personalCoeff, protectionType, finalCoeff }
+     */
+    function calculatePerformanceCoeff(employee, store, calcYear, calcMonth) {
+        const monthEnd = getMonthEnd(calcYear, calcMonth);
+        const monthDays = monthEnd.getDate();
+
+        // 第一步：计算时间系数（基于入职/离职日期）
+        const timeCoeff = getTimeCoeff(employee, calcYear, calcMonth);
+
+        // 特殊保护系数优先判断（闭店/单独申请）
+        // 当特殊保护系数不为空时：门店系数=1，个人系数=特殊保护系数，综合绩效系数=特殊保护系数×时间系数
+        if (employee.specialCoeff != null && employee.specialCoeff !== '') {
+            const specialCoeff = parseFloat(employee.specialCoeff);
+            if (!isNaN(specialCoeff)) {
+                const finalCoeff = timeCoeff * specialCoeff;
+                return {
+                    timeCoeff: Math.round(timeCoeff * 1000) / 1000,
+                    storeCoeff: 1,
+                    personalCoeff: specialCoeff,
+                    protectionType: '特殊保护',
+                    finalCoeff: Math.round(finalCoeff * 1000) / 1000
+                };
+            }
+        }
+
+        // 判断是否适用特殊国家规则
+        const isSpecialRule = isSpecialCountryRule(employee.country, calcYear, calcMonth);
+
+        // 第二步：判断保护类型（基于门店试营业日期、入职日期等）
+        const protectionType = getProtectionType(employee, store, monthEnd);
+
+        // 第三步：基于保护类型计算门店系数
+        const storeCoeff = getStoreCoeff(store, protectionType, store.isTransfer, isSpecialRule);
+
+        // 第四步：基于保护类型计算个人系数（调店时传入调出店得分、调店日期和当月天数）
+        const personalCoeff = getPersonalCoeff(
+            employee.personalScore, 
+            protectionType, 
+            store.isTransfer, 
+            employee.preOpenCoeff,
+            store.transferOutScore,
+            store.transferDay,
+            monthDays,
+            isSpecialRule
+        );
+
+        // 第五步：计算综合系数
+        const finalCoeff = timeCoeff * storeCoeff * personalCoeff;
+
+        return {
+            timeCoeff: Math.round(timeCoeff * 1000) / 1000,
+            storeCoeff,
+            personalCoeff: Math.round(personalCoeff * 1000) / 1000,
+            protectionType,
+            finalCoeff: Math.round(finalCoeff * 1000) / 1000
+        };
+    }
+
+    // 导出
+    return {
+        计算: calculatePerformanceCoeff,
+        时间系数: getTimeCoeff,
+        门店系数: getStoreCoeff,
+        个人系数: getPersonalCoeff,
+        保护类型: getProtectionType,
+        得分映射: mapScoreToCoeff,
+        得分映射特殊: mapScoreToCoeffSpecial,
+        调店个人系数: getTransferPersonalCoeff,
+        是否特殊国家规则: isSpecialCountryRule
+    };
+
 })();
+
+
 
 // ─── 国家映射 ──────────────────────────────────────────
 const COUNTRY_NAME_MAP={'中国':'CN','中国香港':'HK','中国台湾':'TW','阿联酋':'UAE','法国':'FR','新加坡':'SG','马来西亚':'MY','泰国':'TH','印尼':'ID','智利':'CL','越南':'VN','韩国':'KR','日本':'JP','哈萨克斯坦':'KZ','西班牙':'ES','德国':'DE','英国':'GB','秘鲁':'PE','哥伦比亚':'CO','墨西哥':'MX','波兰':'PL','捷克':'CZ','罗马尼亚':'RO','摩洛哥':'MA','马来':'MY','香港':'HK','台湾':'TW','迪拜':'UAE'};
